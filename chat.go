@@ -13,7 +13,6 @@ import (
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	multiaddr "github.com/multiformats/go-multiaddr"
-	logging "github.com/whyrusleeping/go-logging"
 
 	"github.com/ipfs/go-log"
 )
@@ -27,7 +26,6 @@ func makeHandleStream(streamsMgr StreamsManager) network.StreamHandler {
 }
 
 func startCommunication() {
-	log.SetAllLoggers(logging.INFO)
 	log.SetLogLevel("*", "critical")
 	// // log.SetLogLevel("dht", "critical")
 	// // log.SetLogLevel("swarm2", "critical")
@@ -99,23 +97,27 @@ func startCommunication() {
 	logger.Info("Announcing ourselves...")
 	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
 	discovery.Advertise(ctx, routingDiscovery, config.RendezvousString)
-	logger.Debug("Successfully announced!")
+	logger.Info("Successfully announced!")
 
-	for {
-		logger.Info("Searching for other peers...")
-		peerChan, err := routingDiscovery.FindPeers(ctx, config.RendezvousString)
-		if err != nil {
-			panic(err)
-		}
-
-		for peer := range peerChan {
-			if peer.ID == host.ID() {
-				continue
+	go func() {
+		for {
+			logger.Info("Searching for other peers...")
+			peerChan, err := routingDiscovery.FindPeers(ctx, config.RendezvousString)
+			if err != nil {
+				panic(err)
 			}
 
-			streamsMgr.MakeStream(peer)
-		}
+			for peer := range peerChan {
+				if peer.ID == host.ID() {
+					continue
+				}
 
-		time.Sleep(time.Second * 5)
-	}
+				go streamsMgr.MakeStream(peer)
+			}
+
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
+	select {}
 }

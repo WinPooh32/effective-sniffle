@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/network"
@@ -32,6 +33,8 @@ func (cs *ChatStream) Write(data []byte) {
 
 // StreamsManager manages connections streams
 type StreamsManager struct {
+	sync.Mutex
+
 	list    StreamsMap
 	ctx     context.Context
 	host    host.Host
@@ -43,7 +46,10 @@ func (ss *StreamsManager) CloseByPeer(id peer.ID) {
 		if err := stream.Close(); err != nil {
 			fmt.Println(err)
 		}
+
+		ss.Lock()
 		delete(ss.list, id)
+		ss.Unlock()
 	}
 }
 
@@ -63,10 +69,12 @@ func (ss *StreamsManager) AddStream(stream network.Stream) {
 	go readData(rw)
 	go writeData(ss)
 
+	ss.Lock()
 	ss.list[stream.Conn().RemotePeer()] = ChatStream{
 		Stream:   stream,
 		RWBuffer: rw,
 	}
+	ss.Unlock()
 }
 
 func (ss *StreamsManager) WriteToAll(data []byte) {
