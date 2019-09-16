@@ -94,14 +94,12 @@ func startCommunication() {
 	}
 	wg.Wait()
 
-	logger.Info("Announcing ourselves...")
-	routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
-	discovery.Advertise(ctx, routingDiscovery, config.RendezvousString)
-	logger.Info("Successfully announced!")
-
 	go func() {
 		logger.Info("Searching for other peers...")
 		for {
+
+			routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
+			discovery.Advertise(ctx, routingDiscovery, config.RendezvousString)
 
 			peerChan, err := routingDiscovery.FindPeers(ctx, config.RendezvousString)
 			if err != nil {
