@@ -54,6 +54,10 @@ func (ss *StreamsManager) CloseByPeer(id peer.ID) {
 }
 
 func (ss *StreamsManager) MakeStream(peer peer.AddrInfo) {
+	if _, ok := ss.list[peer.ID]; ok {
+		return
+	}
+
 	stream, err := ss.host.NewStream(ss.ctx, peer.ID, ss.protoID)
 	if err != nil {
 		// fmt.Println(err)
@@ -80,7 +84,10 @@ func (ss *StreamsManager) AddStream(stream network.Stream) {
 func (ss *StreamsManager) WriteToAll(data []byte) {
 	for _, stream := range ss.list {
 		stream.RWBuffer.Write(data)
-		stream.RWBuffer.Flush()
+		err := stream.RWBuffer.Flush()
+		if err != nil {
+			ss.CloseByPeer(stream.Conn().RemotePeer())
+		}
 	}
 }
 

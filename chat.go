@@ -100,22 +100,28 @@ func startCommunication() {
 	logger.Info("Successfully announced!")
 
 	go func() {
+		logger.Info("Searching for other peers...")
 		for {
-			logger.Info("Searching for other peers...")
+
 			peerChan, err := routingDiscovery.FindPeers(ctx, config.RendezvousString)
 			if err != nil {
 				panic(err)
 			}
 
-			for peer := range peerChan {
-				if peer.ID == host.ID() {
-					continue
+			tick := time.Tick(5 * time.Second)
+		loop:
+			for {
+				select {
+				case peer := <-peerChan:
+					if peer.ID == host.ID() || peer.ID == "" {
+						continue
+					}
+					// logger.Info(">" + peer.ID + "<")
+					go streamsMgr.MakeStream(peer)
+				case <-tick:
+					break loop
 				}
-
-				go streamsMgr.MakeStream(peer)
 			}
-
-			time.Sleep(time.Second * 5)
 		}
 	}()
 
