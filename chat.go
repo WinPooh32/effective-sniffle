@@ -29,9 +29,9 @@ func makeHandleStream(streamsMgr StreamsManager) network.StreamHandler {
 func startCommunication() {
 	log.SetAllLoggers(logging.INFO)
 	log.SetLogLevel("*", "critical")
-	// log.SetLogLevel("dht", "critical")
-	// log.SetLogLevel("swarm2", "critical")
-	// log.SetLogLevel("relay", "critical")
+	// // log.SetLogLevel("dht", "critical")
+	// // log.SetLogLevel("swarm2", "critical")
+	// // log.SetLogLevel("relay", "critical")
 
 	log.SetLogLevel("rendezvous", "info")
 
@@ -39,9 +39,9 @@ func startCommunication() {
 	addr.Set("0.0.0.0")
 
 	config := Config{
-		RendezvousString: "WOWMYSYPERSUBNET",
+		RendezvousString: "WOWMYSYPERSUBNET2.0",
 		BootstrapPeers:   dht.DefaultBootstrapPeers,
-		ProtocolID:       "/WOWMYSYPERSUBNET/0.0.1",
+		ProtocolID:       "/WOWMYSYPERSUBNET2/0.0.1",
 		ListenAddresses:  addr,
 	}
 	ctx := context.Background()
