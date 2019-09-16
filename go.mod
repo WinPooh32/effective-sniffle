@@ -1,4 +1,4 @@
-module effective-sniffle
+module github.com/winpooh32/effective-sniffle
 
 go 1.12
 
