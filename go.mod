@@ -8,6 +8,7 @@ require (
 	github.com/libp2p/go-libp2p-core v0.2.2
 	github.com/libp2p/go-libp2p-discovery v0.1.0
 	github.com/libp2p/go-libp2p-kad-dht v0.2.1
+	github.com/marcusolsson/tui-go v0.4.0
 	github.com/multiformats/go-multiaddr v0.0.4
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859

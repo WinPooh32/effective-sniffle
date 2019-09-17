@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/libp2p/go-libp2p-core/host"
@@ -41,6 +40,7 @@ type StreamsManager struct {
 	ctx     context.Context
 	host    host.Host
 	protoID protocol.ID
+	ctrl    uiControl
 }
 
 func (ss *StreamsManager) Ignore(id peer.ID) {
@@ -61,6 +61,10 @@ func (ss *StreamsManager) CloseByPeer(id peer.ID) {
 		ss.Lock()
 		delete(ss.list, id)
 		ss.Unlock()
+
+		peerLong := stream.Conn().RemotePeer()
+		peerShort := peerLong[len(peerLong)-5:]
+		ss.ctrl.DelUser <- peerShort.Pretty()
 	}
 }
 
@@ -85,13 +89,7 @@ func (ss *StreamsManager) AddStream(stream network.Stream) {
 
 	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
 
-	go readData(rw, peerShort)
-
-	if len(ss.list) == 0 {
-		hostLong := ss.host.ID()
-		hostShort := hostLong[len(hostLong)-5:]
-		go writeData(ss, hostShort)
-	}
+	go readData(ss, rw, peerShort)
 
 	ss.Lock()
 	ss.list[stream.Conn().RemotePeer()] = ChatStream{
@@ -99,10 +97,14 @@ func (ss *StreamsManager) AddStream(stream network.Stream) {
 		RWBuffer: rw,
 	}
 	ss.Unlock()
+
+	ss.ctrl.AddUser <- fmt.Sprint(peerShort)
 }
 
 func (ss *StreamsManager) WriteToAll(data []byte) {
 	for _, stream := range ss.list {
+		fmt.Println("WRITE TO ALL")
+
 		stream.RWBuffer.Write(data)
 		err := stream.RWBuffer.Flush()
 		if err != nil {
@@ -111,9 +113,10 @@ func (ss *StreamsManager) WriteToAll(data []byte) {
 	}
 }
 
-func readData(rw *bufio.ReadWriter, peerShort peer.ID) {
-
+func readData(ss *StreamsManager, rw *bufio.ReadWriter, peerShort peer.ID) {
 	for {
+		fmt.Println("READ")
+
 		str, err := rw.ReadString('\n')
 		if err != nil {
 			return
@@ -122,22 +125,18 @@ func readData(rw *bufio.ReadWriter, peerShort peer.ID) {
 		if str == "" {
 			return
 		}
+
 		if str != "\n" {
-			fmt.Printf("%s> %s", peerShort, str)
+			ss.ctrl.AddMessage <- str[:len(str)-1]
 		}
+
 	}
 }
 
 func writeData(ss *StreamsManager, peerShort peer.ID) {
-	stdReader := bufio.NewReader(os.Stdin)
-
 	for {
-		fmt.Printf("%s (ME)> ", peerShort)
-		sendData, err := stdReader.ReadString('\n')
-		if err != nil {
-			return
-		}
-
-		ss.WriteToAll([]byte(sendData))
+		sendData := <-ss.ctrl.SubmitMessage
+		ss.WriteToAll([]byte(fmt.Sprint(sendData, "\n")))
+		fmt.Println("WRITE")
 	}
 }

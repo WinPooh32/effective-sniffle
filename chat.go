@@ -19,27 +19,27 @@ import (
 
 var logger = log.Logger("rendezvous")
 
-func makeHandleStream(streamsMgr StreamsManager) network.StreamHandler {
+func makeHandleStream(streamsMgr *StreamsManager) network.StreamHandler {
 	return func(stream network.Stream) {
 		streamsMgr.AddStream(stream)
 	}
 }
 
-func startCommunication() {
+func startCommunication(ctrl uiControl) {
 	log.SetLogLevel("*", "critical")
 	// // log.SetLogLevel("dht", "critical")
 	// // log.SetLogLevel("swarm2", "critical")
 	// // log.SetLogLevel("relay", "critical")
 
-	log.SetLogLevel("rendezvous", "info")
+	// log.SetLogLevel("rendezvous", "info")
 
 	addr := addrList{}
 	addr.Set("0.0.0.0")
 
 	config := Config{
-		RendezvousString: "WOWMYSYPERSUBNET2.0",
+		RendezvousString: "WOWMYSYPERSUBNET3.0",
 		BootstrapPeers:   dht.DefaultBootstrapPeers,
-		ProtocolID:       "/WOWMYSYPERSUBNET2/0.0.1",
+		ProtocolID:       "/WOWMYSYPERSUBNET3/0.0.2",
 		ListenAddresses:  addr,
 	}
 	ctx := context.Background()
@@ -62,18 +62,26 @@ func startCommunication() {
 		host:    host,
 		ctx:     ctx,
 		protoID: protocol.ID(config.ProtocolID),
+		ctrl:    ctrl,
+	}
+
+	if len(streamsMgr.list) == 0 {
+		hostLong := host.ID()
+		hostShort := hostLong[len(hostLong)-5:]
+		go writeData(&streamsMgr, hostShort)
 	}
 
 	// Set a function as stream handler. This function is called when a peer
 	// initiates a connection and starts a stream with this peer.
-	host.SetStreamHandler(protocol.ID(config.ProtocolID), makeHandleStream(streamsMgr))
+	host.SetStreamHandler(protocol.ID(config.ProtocolID), makeHandleStream(&streamsMgr))
 
 	kademliaDHT, err := dht.New(ctx, host)
 	if err != nil {
 		panic(err)
 	}
 
-	logger.Info("Bootstrapping the DHT")
+	// logger.Info("Bootstrapping the DHT")
+	ctrl.Log <- "Bootstrapping the DHT"
 	if err = kademliaDHT.Bootstrap(ctx); err != nil {
 		panic(err)
 	}
@@ -95,34 +103,32 @@ func startCommunication() {
 	}
 	wg.Wait()
 
-	go func() {
-		logger.Info("Searching for other peers...")
+	// go func() {
+	// logger.Info("Searching for other peers...")
+	ctrl.Log <- "Searching for other peers..."
+	for {
+
+		routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
+		discovery.Advertise(ctx, routingDiscovery, config.RendezvousString)
+
+		peerChan, err := routingDiscovery.FindPeers(ctx, config.RendezvousString)
+		if err != nil {
+			panic(err)
+		}
+
+		tick := time.Tick(20 * time.Second)
+	loop:
 		for {
-
-			routingDiscovery := discovery.NewRoutingDiscovery(kademliaDHT)
-			discovery.Advertise(ctx, routingDiscovery, config.RendezvousString)
-
-			peerChan, err := routingDiscovery.FindPeers(ctx, config.RendezvousString)
-			if err != nil {
-				panic(err)
-			}
-
-			tick := time.Tick(20 * time.Second)
-		loop:
-			for {
-				select {
-				case peer := <-peerChan:
-					if peer.ID == host.ID() || peer.ID == "" {
-						continue
-					}
-
-					streamsMgr.MakeStream(peer)
-				case <-tick:
-					break loop
+			select {
+			case peer := <-peerChan:
+				if peer.ID == host.ID() || peer.ID == "" {
+					continue
 				}
+
+				streamsMgr.MakeStream(peer)
+			case <-tick:
+				break loop
 			}
 		}
-	}()
-
-	select {}
+	}
 }
