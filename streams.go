@@ -14,6 +14,7 @@ import (
 )
 
 type StreamsMap map[peer.ID]ChatStream
+type IgnoreMap map[peer.ID]struct{}
 
 type ChatStream struct {
 	network.Stream
@@ -35,10 +36,20 @@ func (cs *ChatStream) Write(data []byte) {
 type StreamsManager struct {
 	sync.Mutex
 
+	ignore  IgnoreMap
 	list    StreamsMap
 	ctx     context.Context
 	host    host.Host
 	protoID protocol.ID
+}
+
+func (ss *StreamsManager) Ignore(id peer.ID) {
+	ss.ignore[id] = struct{}{}
+}
+
+func (ss *StreamsManager) IsIgnored(id peer.ID) bool {
+	_, ok := ss.ignore[id]
+	return ok
 }
 
 func (ss *StreamsManager) CloseByPeer(id peer.ID) {
@@ -60,8 +71,8 @@ func (ss *StreamsManager) MakeStream(peer peer.AddrInfo) {
 
 	stream, err := ss.host.NewStream(ss.ctx, peer.ID, ss.protoID)
 	if err != nil {
-		// fmt.Println(err)
 		// failed to dial
+		ss.Ignore(peer.ID)
 		return
 	}
 
@@ -69,9 +80,18 @@ func (ss *StreamsManager) MakeStream(peer peer.AddrInfo) {
 }
 
 func (ss *StreamsManager) AddStream(stream network.Stream) {
+	peerLong := stream.Conn().RemotePeer()
+	peerShort := peerLong[len(peerLong)-5:]
+
 	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
-	go readData(rw)
-	go writeData(ss)
+
+	go readData(rw, peerShort)
+
+	if len(ss.list) == 0 {
+		hostLong := ss.host.ID()
+		hostShort := hostLong[len(hostLong)-5:]
+		go writeData(ss, hostShort)
+	}
 
 	ss.Lock()
 	ss.list[stream.Conn().RemotePeer()] = ChatStream{
@@ -91,7 +111,8 @@ func (ss *StreamsManager) WriteToAll(data []byte) {
 	}
 }
 
-func readData(rw *bufio.ReadWriter) {
+func readData(rw *bufio.ReadWriter, peerShort peer.ID) {
+
 	for {
 		str, err := rw.ReadString('\n')
 		if err != nil {
@@ -102,16 +123,16 @@ func readData(rw *bufio.ReadWriter) {
 			return
 		}
 		if str != "\n" {
-			fmt.Printf("> %s", str)
+			fmt.Printf("%s> %s", peerShort, str)
 		}
 	}
 }
 
-func writeData(ss *StreamsManager) {
+func writeData(ss *StreamsManager, peerShort peer.ID) {
 	stdReader := bufio.NewReader(os.Stdin)
 
 	for {
-		fmt.Print("> ")
+		fmt.Printf("%s (ME)> ", peerShort)
 		sendData, err := stdReader.ReadString('\n')
 		if err != nil {
 			return

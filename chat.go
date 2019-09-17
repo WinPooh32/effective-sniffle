@@ -58,6 +58,7 @@ func startCommunication() {
 
 	streamsMgr := StreamsManager{
 		list:    make(StreamsMap),
+		ignore:  make(IgnoreMap),
 		host:    host,
 		ctx:     ctx,
 		protoID: protocol.ID(config.ProtocolID),
@@ -106,7 +107,7 @@ func startCommunication() {
 				panic(err)
 			}
 
-			tick := time.Tick(5 * time.Second)
+			tick := time.Tick(20 * time.Second)
 		loop:
 			for {
 				select {
@@ -114,8 +115,8 @@ func startCommunication() {
 					if peer.ID == host.ID() || peer.ID == "" {
 						continue
 					}
-					// logger.Info(">" + peer.ID + "<")
-					go streamsMgr.MakeStream(peer)
+
+					streamsMgr.MakeStream(peer)
 				case <-tick:
 					break loop
 				}
